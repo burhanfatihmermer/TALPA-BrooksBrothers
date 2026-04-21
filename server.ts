@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { initializeDatabase, dbGet, dbAll, dbRun, default as pool } from './database';
+import { initializeDatabase, dbGet, dbAll, dbRun, default as pool } from './database.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
