@@ -1,16 +1,16 @@
 import express from 'express';
 import cors from 'cors';
-import { initializeDatabase, dbGet, dbAll, dbRun, default as db } from './database';
+import { initializeDatabase, dbGet, dbAll, dbRun, default as pool } from './database';
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// INIT
+// Initialize DB (Useful for creating initial schemas once the backend runs)
 initializeDatabase().then(() => {
-    console.log('Veritabanı tabloları hazır.');
+    console.log('Veritabanı tabloları kontrol edildi.');
 }).catch(err => {
     console.error('Veritabanı başlatılamadı:', err);
 });
@@ -44,10 +44,10 @@ app.get('/api/admin/stats', async (req, res) => {
         const usedCodes = await dbGet(`SELECT COUNT(*) as count FROM Codes WHERE is_used = 1`);
         
         res.json({
-            usersCount: totalUsers.count,
-            totalCodes: totalCodes.count,
-            usedCodes: usedCodes.count,
-            remainingCodes: totalCodes.count - usedCodes.count
+            usersCount: parseInt(totalUsers?.count || '0', 10),
+            totalCodes: parseInt(totalCodes?.count || '0', 10),
+            usedCodes: parseInt(usedCodes?.count || '0', 10),
+            remainingCodes: parseInt(totalCodes?.count || '0', 10) - parseInt(usedCodes?.count || '0', 10)
         });
     } catch (err) {
         res.status(500).json({ error: 'İstatistikler alınamadı' });
@@ -57,76 +57,63 @@ app.get('/api/admin/stats', async (req, res) => {
 // BULK insert users (Regular)
 app.post('/api/admin/users/bulk', async (req, res) => {
     const { users } = req.body; 
-    if (!users || !Array.isArray(users)) {
-        return res.status(400).json({ error: 'Geçersiz veri formatı' });
-    }
+    if (!users || !Array.isArray(users)) return res.status(400).json({ error: 'Geçersiz veri formatı' });
 
+    const client = await pool.connect();
     try {
-        db.serialize(() => {
-            db.run("BEGIN TRANSACTION");
-            const stmt = db.prepare(`INSERT OR IGNORE INTO Users (tc_no, claimed_codes_count, is_debtor) VALUES (?, 0, 0)`);
-            users.forEach(tc => {
-                stmt.run(tc);
-            });
-            stmt.finalize();
-            db.run("COMMIT", () => {
-                 res.json({ success: true, count: users.length });
-            });
-        });
+        await client.query("BEGIN");
+        for (const tc of users) {
+             await client.query(`INSERT INTO Users (tc_no, claimed_codes_count, is_debtor) VALUES ($1, 0, 0) ON CONFLICT (tc_no) DO NOTHING`, [tc]);
+        }
+        await client.query("COMMIT");
+        res.json({ success: true, count: users.length });
     } catch (err) {
+        await client.query("ROLLBACK");
         res.status(500).json({ error: 'Kullanıcılar eklenemedi' });
+    } finally {
+        client.release();
     }
 });
 
 // BULK insert users (Debtors)
 app.post('/api/admin/users/debtors/bulk', async (req, res) => {
     const { users } = req.body; 
-    if (!users || !Array.isArray(users)) {
-        return res.status(400).json({ error: 'Geçersiz veri formatı' });
-    }
+    if (!users || !Array.isArray(users)) return res.status(400).json({ error: 'Geçersiz veri formatı' });
 
+    const client = await pool.connect();
     try {
-        db.serialize(() => {
-            db.run("BEGIN TRANSACTION");
-            const stmtInsert = db.prepare(`INSERT OR IGNORE INTO Users (tc_no, claimed_codes_count, is_debtor) VALUES (?, 0, 1)`);
-            const stmtUpdate = db.prepare(`UPDATE Users SET is_debtor = 1 WHERE tc_no = ?`);
-            
-            users.forEach(tc => {
-                stmtInsert.run(tc);
-                stmtUpdate.run(tc);
-            });
-            stmtInsert.finalize();
-            stmtUpdate.finalize();
-            db.run("COMMIT", () => {
-                 res.json({ success: true, count: users.length });
-            });
-        });
+        await client.query("BEGIN");
+        for (const tc of users) {
+             await client.query(`INSERT INTO Users (tc_no, claimed_codes_count, is_debtor) VALUES ($1, 0, 1) ON CONFLICT (tc_no) DO UPDATE SET is_debtor = 1`, [tc]);
+        }
+        await client.query("COMMIT");
+        res.json({ success: true, count: users.length });
     } catch (err) {
+        await client.query("ROLLBACK");
         res.status(500).json({ error: 'Borçlu üyeler eklenemedi' });
+    } finally {
+        client.release();
     }
 });
 
 // BULK insert codes
 app.post('/api/admin/codes/bulk', async (req, res) => {
     const { codes } = req.body; 
-    if (!codes || !Array.isArray(codes)) {
-        return res.status(400).json({ error: 'Geçersiz veri formatı' });
-    }
+    if (!codes || !Array.isArray(codes)) return res.status(400).json({ error: 'Geçersiz veri formatı' });
 
+    const client = await pool.connect();
     try {
-        db.serialize(() => {
-            db.run("BEGIN TRANSACTION");
-            const stmt = db.prepare(`INSERT OR IGNORE INTO Codes (code, is_used) VALUES (?, 0)`);
-            codes.forEach(c => {
-                stmt.run(c);
-            });
-            stmt.finalize();
-            db.run("COMMIT", () => {
-                res.json({ success: true, count: codes.length });
-            });
-        });
+        await client.query("BEGIN");
+        for (const c of codes) {
+            await client.query(`INSERT INTO Codes (code, is_used) VALUES ($1, 0) ON CONFLICT (code) DO NOTHING`, [c]);
+        }
+        await client.query("COMMIT");
+        res.json({ success: true, count: codes.length });
     } catch (err) {
+        await client.query("ROLLBACK");
         res.status(500).json({ error: 'Kodlar eklenemedi' });
+    } finally {
+        client.release();
     }
 });
 
@@ -142,108 +129,69 @@ app.delete('/api/admin/reset', async (req, res) => {
     }
 });
 
-// USER: Claim a Code
-app.post('/api/claim-code', (req, res) => {
+// CLAIM CODE
+app.post('/api/claim-code', async (req, res) => {
     const { tc_no } = req.body;
+    if (!tc_no || typeof tc_no !== 'string') return res.status(400).json({ error: 'Geçerli bir T.C. Kimlik Numarası girin.' });
 
-    if (!tc_no || typeof tc_no !== 'string') {
-        return res.status(400).json({ error: 'Geçerli bir T.C. Kimlik Numarası girin.' });
-    }
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
 
-    db.serialize(() => {
-        db.run("BEGIN EXCLUSIVE TRANSACTION");
+        const userRes = await client.query(`SELECT * FROM Users WHERE tc_no = $1 FOR UPDATE`, [tc_no]);
+        const user = userRes.rows[0];
 
-        // 1. TCKN kontrol
-        db.get(`SELECT * FROM Users WHERE tc_no = ?`, [tc_no], (err, user: any) => {
-            if (err) {
-                db.run("ROLLBACK");
-                return res.status(500).json({ error: 'Sistem hatası (Kullanıcı doğrulaması).' });
-            }
-            
-            if (!user) {
-                db.run("ROLLBACK");
-                return res.status(404).json({ error: 'TALPA üyelik kaydınıza ulaşılamamıştır.' });
-            }
+        if (!user) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: 'TALPA üyelik kaydınıza ulaşılamamıştır.' });
+        }
 
-            // Borçlu üye kontrolü
-            if (user.is_debtor) {
-                db.run("ROLLBACK");
-                return res.status(403).json({ error: 'Dernek aidat borçlarınız sebebiyle, kampanya katılımınız sınırlandırılmıştır. Lütfen muhasebe birimi ile iletişime geçiniz.' });
-            }
+        if (user.is_debtor === 1 || user.is_debtor === true) {
+            await client.query("ROLLBACK");
+            return res.status(403).json({ error: 'Dernek aidat borçlarınız sebebiyle, kampanya katılımınız sınırlandırılmıştır. Lütfen muhasebe birimi ile iletişime geçiniz.' });
+        }
 
-            // 2. Limit kontrol ve Onceden alinmis kodları bulma
-            db.get(`SELECT value FROM Settings WHERE key = 'max_codes_per_user'`, [], (err, setting: any) => {
-                if (err) {
-                    db.run("ROLLBACK");
-                    return res.status(500).json({ error: 'Sistem hatası (Limit doğrulama).' });
-                }
+        const limitRes = await client.query(`SELECT value FROM Settings WHERE key = 'max_codes_per_user'`);
+        const maxCodes = parseInt(limitRes.rows[0]?.value || '1', 10);
+        
+        const pastRes = await client.query(`SELECT code FROM Codes WHERE assigned_to_tc = $1 ORDER BY id ASC`, [tc_no]);
+        const pastCodes = pastRes.rows.map((r: any) => r.code);
 
-                const maxCodes = parseInt(setting.value || '1', 10);
-                
-                db.all(`SELECT code FROM Codes WHERE assigned_to_tc = ? ORDER BY id ASC`, [tc_no], (err, rows: any[]) => {
-                    if (err) {
-                        db.run("ROLLBACK");
-                        return res.status(500).json({ error: 'Sistem hatası (Geçmiş kodlar).' });
-                    }
-                    
-                    const pastCodes = rows.map(r => r.code);
-
-                    if (user.claimed_codes_count >= maxCodes) {
-                        db.run("ROLLBACK");
-                        return res.json({ 
-                            success: true, 
-                            limitReached: true,
-                            pastCodes: pastCodes,
-                            message: 'Kampanya katılım limitinize ulaştınız. Görüntülenen kodlar daha önce almış olduğunuz kodlardır.' 
-                        });
-                    }
-
-                    // 3. Müsait kod çek
-                    db.get(`SELECT * FROM Codes WHERE is_used = 0 LIMIT 1`, [], (err, codeRow: any) => {
-                        if (err) {
-                            db.run("ROLLBACK");
-                            return res.status(500).json({ error: 'Sistem hatası (Kod doğrulama).' });
-                        }
-                        if (!codeRow) {
-                            db.run("ROLLBACK");
-                            return res.status(404).json({ error: 'Dağıtılacak kampanya kodu kalmadı!' });
-                        }
-
-                        // 4. Kodu ata
-                        db.run(`UPDATE Codes SET is_used = 1, assigned_to_tc = ? WHERE id = ?`, [tc_no, codeRow.id], (err) => {
-                            if (err) {
-                                db.run("ROLLBACK");
-                                return res.status(500).json({ error: 'Sistem hatası (Güncelleme).' });
-                            }
-
-                            // 5. Kullanıcının limit sayacını artır
-                            db.run(`UPDATE Users SET claimed_codes_count = claimed_codes_count + 1 WHERE tc_no = ?`, [tc_no], (err) => {
-                                if (err) {
-                                    db.run("ROLLBACK");
-                                    return res.status(500).json({ error: 'Sistem hatası (Kullanıcı güncelleme).' });
-                                }
-
-                                db.run("COMMIT", (err) => {
-                                    if (err) {
-                                        db.run("ROLLBACK");
-                                        return res.status(500).json({ error: 'Sistem hatası (Transaction).' });
-                                    }
-                                    
-                                    res.json({ 
-                                        success: true, 
-                                        limitReached: false,
-                                        code: codeRow.code,
-                                        pastCodes: pastCodes,
-                                        message: 'Üye doğrulama başarılı! Kampanya kodunuz teslim edildi.'
-                                    });
-                                });
-                            });
-                        });
-                    });
-                });
+        if (user.claimed_codes_count >= maxCodes) {
+            await client.query("ROLLBACK");
+            return res.json({ 
+                success: true, 
+                limitReached: true,
+                pastCodes: pastCodes,
+                message: 'Kampanya katılım limitinize ulaştınız. Görüntülenen kodlar daha önce almış olduğunuz kodlardır.' 
             });
+        }
+
+        const codeRes = await client.query(`SELECT * FROM Codes WHERE is_used = 0 LIMIT 1 FOR UPDATE SKIP LOCKED`);
+        const codeRow = codeRes.rows[0];
+        if (!codeRow) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: 'Dağıtılacak kampanya kodu kalmadı!' });
+        }
+
+        await client.query(`UPDATE Codes SET is_used = 1, assigned_to_tc = $1 WHERE id = $2`, [tc_no, codeRow.id]);
+        await client.query(`UPDATE Users SET claimed_codes_count = claimed_codes_count + 1 WHERE tc_no = $1`, [tc_no]);
+
+        await client.query("COMMIT");
+        res.json({ 
+            success: true, 
+            limitReached: false,
+            code: codeRow.code,
+            pastCodes: pastCodes,
+            message: 'Üye doğrulama başarılı! Kampanya kodunuz teslim edildi.'
         });
-    });
+
+    } catch (err: any) {
+        await client.query("ROLLBACK");
+        res.status(500).json({ error: 'Sistem hatası.' });
+    } finally {
+        client.release();
+    }
 });
 
 // GET UYELER LISTESI (ONIZLEME)
@@ -265,7 +213,6 @@ app.get('/api/admin/codes', async (req, res) => {
         res.status(500).json({ error: 'Kod verileri alınamadı' });
     }
 });
-
 
 // SEARCH user
 app.post('/api/admin/users/search', async (req, res) => {
@@ -307,6 +254,13 @@ app.put('/api/admin/users/status', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`API Sunucusu http://localhost:${PORT} adresinde çalışıyor.`);
-});
+
+// Sadece üretim (Vercel gibi Serverless) ortamında değilsek doğrudan dinle
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`API Sunucusu http://localhost:${PORT} adresinde çalışıyor. (DEV)`);
+    });
+}
+
+// Vercel Serverless Function için app dışa aktarılıyor
+export default app;

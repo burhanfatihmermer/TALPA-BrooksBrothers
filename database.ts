@@ -1,85 +1,71 @@
-import sqlite3 from 'sqlite3';
-import path from 'path';
+import { Pool } from 'pg';
 
-const dbPath = path.resolve(process.cwd(), 'database.sqlite');
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Veritabanı bağlantı hatası:', err.message);
-    } else {
-        console.log('Veritabanına bağlanıldı.');
-    }
+const connectionString = process.env.POSTGRES_URL || 'postgres://localhost:5432/campaign';
+
+const pool = new Pool({
+  connectionString,
+  ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
 });
 
-export function initializeDatabase(): Promise<void> {
-    return new Promise((resolve, reject) => {
-        db.serialize(() => {
-            db.run(`
-                CREATE TABLE IF NOT EXISTS Users (
-                    tc_no TEXT PRIMARY KEY,
-                    claimed_codes_count INTEGER DEFAULT 0
-                )
-            `, () => {
-                // Hata verirse sütun zaten var demektir, görmezden geliyoruz.
-                db.run(`ALTER TABLE Users ADD COLUMN is_debtor BOOLEAN DEFAULT 0`, () => {});
-            });
+pool.on('error', (err) => {
+    console.error('PostgreSQL Beklenmeyen Hata:', err);
+});
 
-            db.run(`
-                CREATE TABLE IF NOT EXISTS Codes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    code TEXT UNIQUE NOT NULL,
-                    is_used BOOLEAN DEFAULT 0,
-                    assigned_to_tc TEXT
-                )
-            `);
-
-            db.run(`
-                CREATE TABLE IF NOT EXISTS Settings (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                )
-            `, (err) => {
-                if (err) return reject(err);
-                
-                db.get(`SELECT * FROM Settings WHERE key = 'max_codes_per_user'`, (err, row) => {
-                    if (!row) {
-                        db.run(`INSERT INTO Settings (key, value) VALUES ('max_codes_per_user', '1')`, (err2) => {
-                            if (err2) reject(err2);
-                            else resolve();
-                        });
-                    } else {
-                        resolve();
-                    }
-                });
-            });
-        });
-    });
+function convertQuery(query: string) {
+    let index = 1;
+    return query.replace(/\?/g, () => `$${index++}`);
 }
 
-export function dbGet(query: string, params: any[] = []): Promise<any> {
-    return new Promise((resolve, reject) => {
-        db.get(query, params, (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-        });
-    });
+export async function initializeDatabase(): Promise<void> {
+    const client = await pool.connect();
+    try {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS Users (
+                tc_no TEXT PRIMARY KEY,
+                claimed_codes_count INTEGER DEFAULT 0,
+                is_debtor INTEGER DEFAULT 0
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS Codes (
+                id SERIAL PRIMARY KEY,
+                code TEXT UNIQUE NOT NULL,
+                is_used INTEGER DEFAULT 0,
+                assigned_to_tc TEXT
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS Settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        `);
+
+        const res = await client.query(`SELECT * FROM Settings WHERE key = 'max_codes_per_user'`);
+        if (res.rows.length === 0) {
+            await client.query(`INSERT INTO Settings (key, value) VALUES ('max_codes_per_user', '1')`);
+        }
+    } catch (err) {
+        console.error("PG INIT ERROR:", err);
+    } finally {
+        client.release();
+    }
 }
 
-export function dbAll(query: string, params: any[] = []): Promise<any[]> {
-    return new Promise((resolve, reject) => {
-        db.all(query, params, (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
-        });
-    });
+export async function dbGet(query: string, params: any[] = []): Promise<any> {
+    const res = await pool.query(convertQuery(query), params);
+    return res.rows[0] || null;
 }
 
-export function dbRun(query: string, params: any[] = []): Promise<void> {
-    return new Promise((resolve, reject) => {
-        db.run(query, params, function (err) {
-            if (err) reject(err);
-            else resolve();
-        });
-    });
+export async function dbAll(query: string, params: any[] = []): Promise<any[]> {
+    const res = await pool.query(convertQuery(query), params);
+    return res.rows;
 }
 
-export default db;
+export async function dbRun(query: string, params: any[] = []): Promise<void> {
+    await pool.query(convertQuery(query), params);
+}
+
+export default pool;
