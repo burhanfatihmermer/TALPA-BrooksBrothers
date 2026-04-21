@@ -436,7 +436,7 @@ export default function AdminDashboard() {
            
            {/* Tablo: Kayıtlı Üyeler */}
            <div className="action-card">
-              <h3>Kayıtlı Üyeler (Tüm Kayıtlar)</h3>
+              <h3>Kayıtlı Üyeler (Sistemdeki İlk 20 Kayıt)</h3>
               <div style={{ height: '350px', overflowY: 'auto', backgroundColor: 'rgba(15, 23, 42, 0.5)', borderRadius: '8px', padding: '1rem', marginTop: '1rem' }}>
                 <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>
@@ -464,7 +464,7 @@ export default function AdminDashboard() {
 
            {/* Tablo: Kayıtlı Kodlar */}
            <div className="action-card">
-              <h3>Kayıtlı Kodlar (Tüm Kayıtlar)</h3>
+              <h3>Kayıtlı Kodlar (Sistemdeki Son 20 Kayıt)</h3>
               <div style={{ height: '350px', overflowY: 'auto', backgroundColor: 'rgba(15, 23, 42, 0.5)', borderRadius: '8px', padding: '1rem', marginTop: '1rem' }}>
                 <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>

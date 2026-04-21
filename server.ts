@@ -62,13 +62,17 @@ app.post('/api/admin/users/bulk', async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query("BEGIN");
-        for (const tc of users) {
-             await client.query(`INSERT INTO Users (tc_no, claimed_codes_count, is_debtor) VALUES ($1, 0, 0) ON CONFLICT (tc_no) DO NOTHING`, [tc]);
-        }
+        await client.query(`
+            INSERT INTO Users (tc_no, claimed_codes_count, is_debtor) 
+            SELECT tc, 0, 0 
+            FROM UNNEST($1::text[]) AS tc 
+            ON CONFLICT (tc_no) DO NOTHING
+        `, [users]);
         await client.query("COMMIT");
         res.json({ success: true, count: users.length });
     } catch (err) {
         await client.query("ROLLBACK");
+        console.error(err);
         res.status(500).json({ error: 'Kullanıcılar eklenemedi' });
     } finally {
         client.release();
@@ -83,13 +87,17 @@ app.post('/api/admin/users/debtors/bulk', async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query("BEGIN");
-        for (const tc of users) {
-             await client.query(`INSERT INTO Users (tc_no, claimed_codes_count, is_debtor) VALUES ($1, 0, 1) ON CONFLICT (tc_no) DO UPDATE SET is_debtor = 1`, [tc]);
-        }
+        await client.query(`
+            INSERT INTO Users (tc_no, claimed_codes_count, is_debtor) 
+            SELECT tc, 0, 1 
+            FROM UNNEST($1::text[]) AS tc 
+            ON CONFLICT (tc_no) DO UPDATE SET is_debtor = 1
+        `, [users]);
         await client.query("COMMIT");
         res.json({ success: true, count: users.length });
     } catch (err) {
         await client.query("ROLLBACK");
+        console.error(err);
         res.status(500).json({ error: 'Borçlu üyeler eklenemedi' });
     } finally {
         client.release();
@@ -104,13 +112,17 @@ app.post('/api/admin/codes/bulk', async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query("BEGIN");
-        for (const c of codes) {
-            await client.query(`INSERT INTO Codes (code, is_used) VALUES ($1, 0) ON CONFLICT (code) DO NOTHING`, [c]);
-        }
+        await client.query(`
+            INSERT INTO Codes (code, is_used) 
+            SELECT c, 0 
+            FROM UNNEST($1::text[]) AS c 
+            ON CONFLICT (code) DO NOTHING
+        `, [codes]);
         await client.query("COMMIT");
         res.json({ success: true, count: codes.length });
     } catch (err) {
         await client.query("ROLLBACK");
+        console.error(err);
         res.status(500).json({ error: 'Kodlar eklenemedi' });
     } finally {
         client.release();
@@ -197,7 +209,7 @@ app.post('/api/claim-code', async (req, res) => {
 // GET UYELER LISTESI (ONIZLEME)
 app.get('/api/admin/users', async (req, res) => {
     try {
-        const users = await dbAll(`SELECT tc_no, claimed_codes_count, is_debtor FROM Users ORDER BY tc_no`);
+        const users = await dbAll(`SELECT tc_no, claimed_codes_count, is_debtor FROM Users ORDER BY tc_no LIMIT 20`);
         res.json(users);
     } catch (err) {
         res.status(500).json({ error: 'Kullanıcı verileri alınamadı' });
@@ -207,7 +219,7 @@ app.get('/api/admin/users', async (req, res) => {
 // GET KODLAR LISTESI (ONIZLEME)
 app.get('/api/admin/codes', async (req, res) => {
     try {
-        const codes = await dbAll(`SELECT id, code, is_used, assigned_to_tc FROM Codes ORDER BY id DESC`);
+        const codes = await dbAll(`SELECT id, code, is_used, assigned_to_tc FROM Codes ORDER BY id DESC LIMIT 20`);
         res.json(codes);
     } catch (err) {
         res.status(500).json({ error: 'Kod verileri alınamadı' });
