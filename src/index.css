@@ -298,4 +298,28 @@ input:focus {
   .actions-grid {
     grid-template-columns: 1fr;
   }
+
+  .navbar {
+    flex-direction: column;
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .navbar .brand {
+    font-size: 1.1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .navbar .nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .navbar .nav-links a {
+    margin-left: 0;
+  }
 }

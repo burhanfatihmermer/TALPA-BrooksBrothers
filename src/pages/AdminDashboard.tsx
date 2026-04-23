@@ -19,6 +19,9 @@ export default function AdminDashboard() {
   const [userList, setUserList] = useState<any[]>([]);
   const [codeList, setCodeList] = useState<any[]>([]);
 
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+
   const fetchStats = async () => {
     try {
       const [statsRes, limitRes, usersRes, codesRes] = await Promise.all([
@@ -42,8 +45,10 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    if (isAuthenticated) {
+      fetchStats();
+    }
+  }, [isAuthenticated]);
 
   const showMessage = (type: 'success'|'error', text: string) => {
     setMessage({ type, text });
@@ -248,6 +253,44 @@ export default function AdminDashboard() {
         setLoading(false);
      }
   };
+
+  const handleLogin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (adminPassword === 'BrooksTalpa2026') {
+      setIsAuthenticated(true);
+      setMessage(null);
+    } else {
+      showMessage('error', 'Hatalı şifre girdiniz.');
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex-center" style={{ minHeight: '80vh', flexDirection: 'column' }}>
+        <div className="card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+          <ShieldCheck size={48} style={{ margin: '0 auto 1.5rem auto', display: 'block', color: 'var(--primary)' }} />
+          <h2 style={{ marginBottom: '1.5rem', marginTop: 0 }}>Yönetici Girişi</h2>
+          
+          {message && (
+            <div className={`alert ${message.type}`} style={{ textAlign: 'left', padding: '0.75rem', fontSize: '0.875rem' }}>
+              {message.text}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <input 
+              type="password" 
+              placeholder="Yönetici Şifresi" 
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              style={{ padding: '0.875rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', backgroundColor: 'rgba(15, 23, 42, 0.5)', color: 'white', width: '100%' }}
+            />
+            <button type="submit" className="btn" style={{ width: '100%' }}>Giriş Yap</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container" style={{ maxWidth: '1400px' }}>

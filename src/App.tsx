@@ -14,9 +14,6 @@ function App() {
         </NavLink>
         <div className="nav-links">
           <NavLink to="/" className={({isActive}) => isActive ? "active" : ""}>Kod Al</NavLink>
-          <NavLink to="/admin" className={({isActive}) => isActive ? "active" : ""}>
-             Yönetim Paneli
-          </NavLink>
         </div>
       </nav>
       

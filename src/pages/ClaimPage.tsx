@@ -114,8 +114,8 @@ export default function ClaimPage() {
              {codeData.code && (
                <div className="code-display" style={{ background: 'rgba(30, 41, 59, 0.8)', border: '2px solid var(--accent)', marginBottom: '1.5rem', padding: '2rem 1.5rem' }}>
                   <div className="label" style={{ color: '#94a3b8' }}>YENİ %10 İNDİRİM KODUNUZ</div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
-                    <div className="code" style={{ margin: 0, textShadow: 'none', color: '#fff', fontSize: '2.5rem' }}>{codeData.code}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                    <div className="code" style={{ margin: 0, textShadow: 'none', color: '#fff', fontSize: '1.75rem', wordBreak: 'break-all' }}>{codeData.code}</div>
                     <button onClick={() => copyToClipboard(codeData.code as string)} title="Kopyala" style={{ background: 'var(--accent)', color: '#000', border: 'none', borderRadius: '0.5rem', padding: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                       {copiedCode === codeData.code ? <CheckCircle size={24} /> : <Copy size={24} />}
                     </button>
