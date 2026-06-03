@@ -19,6 +19,7 @@ const TermsAndConditions = () => (
       <li>Kazanılan indirim kodu <strong>tek kullanımlık</strong> olup, şifre kullanmadan yapılan alışverişlerde indirim sağlanmayacaktır.</li>
       <li>Kampanyadan her üye ayda <strong>1 defa</strong> faydalanabilir.</li>
       <li>Kampanya, diğer indirim kodu kampanyaları ile birleştirilemez.</li>
+      <li>Brooks Brothers markamızın tüm iş birliklerinde <strong>Prestige sadakat programımıza</strong> üyelik şartımız bulunmaktadır. Müşterilerimizi mobil uygulamamızı indirip, ücretsiz üyelik oluşturmaları konusunda kasa noktasındaki personellerimiz yönlendirecektir.</li>
       <li>BB Perakende Mağazacılık Sanayi ve Ticaret A.Ş., kampanyayı dilediği zaman sonlandırma veya değiştirme hakkını saklı tutar.</li>
     </ul>
   </div>
@@ -83,8 +84,8 @@ export default function ClaimPage() {
         <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginBottom: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <img src="/talpa-logo.webp" alt="TALPA Logo" style={{ height: '70px', objectFit: 'contain' }} 
                onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-          <div style={{ width: '1px', height: '50px', backgroundColor: 'rgba(255,255,255,0.2)' }}></div>
-          <img src="/brooks-brothers-logo.png" alt="Brooks Brothers Logo" style={{ height: '75px', objectFit: 'contain' }} 
+          <div style={{ width: '1px', height: '60px', backgroundColor: 'rgba(255,255,255,0.2)' }}></div>
+          <img src="/brooks-brothers-logo-body.png" alt="Brooks Brothers Logo" style={{ height: '80px', objectFit: 'contain', mixBlendMode: 'screen' }} 
                onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         </div>
 

@@ -9,7 +9,7 @@ function App() {
       <nav className="navbar">
         <NavLink to="/" className="brand" style={{ gap: '1rem', alignItems: 'center' }}>
           <img src="/talpa-logo.webp" alt="TALPA" style={{ height: '32px' }} />
-          <img src="/brooks-brothers-logo.png" alt="Brooks Brothers" style={{ height: '24px' }} />
+          <img src="/brooks-brothers-logo.png" alt="Brooks Brothers" style={{ height: '28px', mixBlendMode: 'screen' }} />
           <span>TALPA & Brooks Brothers</span>
         </NavLink>
         <div className="nav-links">
