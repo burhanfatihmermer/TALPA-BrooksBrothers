@@ -85,7 +85,7 @@ export default function ClaimPage() {
           <img src="/talpa-logo.webp" alt="TALPA Logo" style={{ height: '70px', objectFit: 'contain' }} 
                onError={(e) => { e.currentTarget.style.display = 'none'; }} />
           <div style={{ width: '1px', height: '60px', backgroundColor: 'rgba(255,255,255,0.2)' }}></div>
-          <img src="/brooks-brothers-logo-body.png" alt="Brooks Brothers Logo" style={{ height: '80px', objectFit: 'contain', mixBlendMode: 'screen' }} 
+          <img src="/brooks-brothers-logo-body.png" alt="Brooks Brothers Logo" style={{ height: '75px', objectFit: 'contain', mixBlendMode: 'screen' }} 
                onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         </div>
 
